@@ -1,0 +1,102 @@
+#include <TM1637Display.h>
+
+// Pin definitions for the displays
+#define CLK_LEFT 2   // Left display (shows right road distance)
+#define DIO_LEFT 4
+#define CLK_RIGHT 12   // Right display (shows left road distance)
+#define DIO_RIGHT 13 
+
+// TM1637 Display objects
+TM1637Display displayLeft(CLK_LEFT, DIO_LEFT);
+TM1637Display displayRight(CLK_RIGHT, DIO_RIGHT);
+
+// Ultrasonic Sensor Pins
+#define trigA 8
+#define echoA 9
+#define trigB 10
+#define echoB 11
+
+// LED Pins
+#define greenA 3
+#define redA 5
+#define greenB 6
+#define redB 7
+
+int brightnessA = 0;
+int brightnessB = 0;
+int fadeStep = 5;
+
+unsigned long previousMillisGreenA = 0;
+unsigned long previousMillisGreenB = 0;
+unsigned long blinkInterval = 500;
+
+void setup() {
+  pinMode(trigA, OUTPUT);
+  pinMode(echoA, INPUT);
+  pinMode(trigB, OUTPUT);
+  pinMode(echoB, INPUT);
+  pinMode(greenA, OUTPUT);
+  pinMode(redA, OUTPUT);
+  pinMode(greenB, OUTPUT);
+  pinMode(redB, OUTPUT);
+
+  Serial.begin(9600);
+
+  // Initialize displays with brightness level (0-7)
+  displayLeft.setBrightness(5);
+  displayRight.setBrightness(5);
+}
+
+void loop() {
+  int distanceA = getDistance(trigA, echoA);
+  int distanceB = getDistance(trigB, echoB);
+
+  // Update 7-segment displays
+  displayLeft.showNumberDec(distanceB, false);  // Left display shows right road distance
+  displayRight.showNumberDec(distanceA, false); // Right display shows left road distance
+
+  // Road A Logic
+  if (distanceA < 30) {
+    analogWrite(greenA, 0);
+    brightnessA = min(brightnessA + fadeStep, 255);
+    analogWrite(redA, brightnessA);
+  } else {
+    analogWrite(redA, 0);
+    blinkGreen(greenA, &previousMillisGreenA);
+    brightnessA = 0;
+  }
+
+  // Road B Logic
+  if (distanceB < 30) {
+    analogWrite(greenB, 0);
+    brightnessB = min(brightnessB + fadeStep, 255);
+    analogWrite(redB, brightnessB);
+  } else {
+    analogWrite(redB, 0);
+    blinkGreen(greenB, &previousMillisGreenB);
+    brightnessB = 0;
+  }
+
+  delay(50);
+}
+
+int getDistance(int trigPin, int echoPin) {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  long duration = pulseIn(echoPin, HIGH);
+  int distance = duration * 0.034 / 2;
+  return distance > 999 ? 999 : distance;  // Limit to 999 for display
+}
+
+void blinkGreen(int greenPin, unsigned long* previousMillis) {
+  unsigned long currentMillis = millis();
+  if (currentMillis - *previousMillis >= blinkInterval) {
+    *previousMillis = currentMillis;
+    int state = digitalRead(greenPin);
+    digitalWrite(greenPin, !state);
+  }
+}
